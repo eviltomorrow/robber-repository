@@ -1,7 +1,7 @@
 # This how we want to name the binary output
 #
-BINARY=robber-datasource
-GOFILE=cmd/robber-datasource.go
+BINARY=robber-repository
+GOFILE=cmd/robber-repository.go
 GOPATH ?= $(shell go env GOPATH)
 # Ensure GOPATH is set before running build process.
 ifeq "$(GOPATH)" ""

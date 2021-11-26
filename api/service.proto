@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+import "google/protobuf/wrappers.proto";
+import "google/protobuf/empty.proto";
+
+option go_package = "./;pb";
+package repository;
+
+service Service {
+    rpc Version(google.protobuf.Empty) returns (google.protobuf.StringValue){}
+
+    rpc PushQuoteWeek(google.protobuf.Empty) returns (Count){}
+    rpc PushQuoteDay(stream Quote) returns (Count){}
+    rpc PushStock(stream Stock) returns (Count){}
+    rpc GetStockFull(google.protobuf.Empty) returns (stream Stock){}
+    rpc GetQuoteLatest(QuoteRequest) returns (stream Quote){}
+}
+
+message Count {
+    int64 total = 1;
+    int64 success = 2;
+}
+
+message QuoteRequest {
+    string code = 1;
+    string date = 2;
+    int64 limit = 3;
+    enum Mode {
+        Day = 0;
+        Week = 1;
+    };
+    Mode mode = 4;
+}
+
+message Stock {
+    string code = 1;
+    string name = 2;
+    string suspend = 3;
+}
+
+message Quote {
+    string code = 1;
+    double open = 2;
+    double close = 3;
+    double high = 4;
+    double low = 5;
+    double yesterday_closed = 6;
+    uint64 volume = 7;
+    double account = 8;
+    string date = 9;
+    int32 num_of_year = 10;
+    double xd = 11;
+}
