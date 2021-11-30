@@ -9,7 +9,7 @@ package repository;
 service Service {
     rpc Version(google.protobuf.Empty) returns (google.protobuf.StringValue){}
 
-    rpc PushQuoteWeek(google.protobuf.Empty) returns (Count){}
+    rpc PushQuoteWeek(google.protobuf.StringValue) returns (Count){}
     rpc PushQuoteDay(stream Quote) returns (Count){}
     rpc PushStock(stream Stock) returns (Count){}
     rpc GetStockFull(google.protobuf.Empty) returns (stream Stock){}

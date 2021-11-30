@@ -8,12 +8,41 @@ import (
 	"github.com/eviltomorrow/robber-core/pkg/zmath"
 	"github.com/eviltomorrow/robber-core/pkg/ztime"
 	"github.com/eviltomorrow/robber-repository/internal/model"
+	"github.com/eviltomorrow/robber-repository/pkg/pb"
 )
 
 var (
 	timeout   = 10 * time.Second
 	ErrNoData = errors.New("no data")
 )
+
+func BuildQuoteDay(data *pb.Quote, date time.Time) (*model.Quote, error) {
+	latest, err := model.QuoteWithSelectManyLatest(mysql.DB, model.Day, data.Code, data.Date, 1, timeout)
+	if err != nil {
+		return nil, err
+	}
+
+	var xd float64 = 1.0
+	if len(latest) == 1 && latest[0].Close != data.YesterdayClosed {
+		xd = data.YesterdayClosed / latest[0].Close
+	}
+
+	quote := &model.Quote{
+		Code:            data.Code,
+		Open:            data.Open,
+		Close:           data.Close,
+		High:            data.High,
+		Low:             data.Low,
+		YesterdayClosed: data.YesterdayClosed,
+		Volume:          data.Volume,
+		Account:         data.Account,
+		Date:            date,
+		NumOfYear:       date.YearDay(),
+		Xd:              xd,
+		CreateTimestamp: time.Now(),
+	}
+	return quote, nil
+}
 
 func BuildQuoteWeek(code string, date time.Time) (*model.Quote, error) {
 	var (

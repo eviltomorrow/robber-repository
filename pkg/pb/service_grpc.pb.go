@@ -25,7 +25,7 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ServiceClient interface {
 	Version(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*wrapperspb.StringValue, error)
-	PushQuoteWeek(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Count, error)
+	PushQuoteWeek(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*Count, error)
 	PushQuoteDay(ctx context.Context, opts ...grpc.CallOption) (Service_PushQuoteDayClient, error)
 	PushStock(ctx context.Context, opts ...grpc.CallOption) (Service_PushStockClient, error)
 	GetStockFull(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (Service_GetStockFullClient, error)
@@ -49,7 +49,7 @@ func (c *serviceClient) Version(ctx context.Context, in *emptypb.Empty, opts ...
 	return out, nil
 }
 
-func (c *serviceClient) PushQuoteWeek(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Count, error) {
+func (c *serviceClient) PushQuoteWeek(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*Count, error) {
 	out := new(Count)
 	err := c.cc.Invoke(ctx, "/repository.Service/PushQuoteWeek", in, out, opts...)
 	if err != nil {
@@ -195,7 +195,7 @@ func (x *serviceGetQuoteLatestClient) Recv() (*Quote, error) {
 // for forward compatibility
 type ServiceServer interface {
 	Version(context.Context, *emptypb.Empty) (*wrapperspb.StringValue, error)
-	PushQuoteWeek(context.Context, *emptypb.Empty) (*Count, error)
+	PushQuoteWeek(context.Context, *wrapperspb.StringValue) (*Count, error)
 	PushQuoteDay(Service_PushQuoteDayServer) error
 	PushStock(Service_PushStockServer) error
 	GetStockFull(*emptypb.Empty, Service_GetStockFullServer) error
@@ -210,7 +210,7 @@ type UnimplementedServiceServer struct {
 func (UnimplementedServiceServer) Version(context.Context, *emptypb.Empty) (*wrapperspb.StringValue, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Version not implemented")
 }
-func (UnimplementedServiceServer) PushQuoteWeek(context.Context, *emptypb.Empty) (*Count, error) {
+func (UnimplementedServiceServer) PushQuoteWeek(context.Context, *wrapperspb.StringValue) (*Count, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PushQuoteWeek not implemented")
 }
 func (UnimplementedServiceServer) PushQuoteDay(Service_PushQuoteDayServer) error {
@@ -257,7 +257,7 @@ func _Service_Version_Handler(srv interface{}, ctx context.Context, dec func(int
 }
 
 func _Service_PushQuoteWeek_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
+	in := new(wrapperspb.StringValue)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -269,7 +269,7 @@ func _Service_PushQuoteWeek_Handler(srv interface{}, ctx context.Context, dec fu
 		FullMethod: "/repository.Service/PushQuoteWeek",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ServiceServer).PushQuoteWeek(ctx, req.(*emptypb.Empty))
+		return srv.(ServiceServer).PushQuoteWeek(ctx, req.(*wrapperspb.StringValue))
 	}
 	return interceptor(ctx, in, info, handler)
 }

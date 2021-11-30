@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"time"
 
@@ -59,9 +60,56 @@ func (g *GRPC) Version(ctx context.Context, _ *emptypb.Empty) (*wrapperspb.Strin
 // 	GetStockFull(*emptypb.Empty, Service_GetStockFullServer) error
 // 	GetQuoteLatest(*QuoteRequest, Service_GetQuoteLatestServer) error
 
-func (g *GRPC) PushQuoteWeek(context.Context, *emptypb.Empty) (*pb.Count, error) {
-	var today = time.Now()
-	if today.Weekday() != time.Friday {
+func (g *GRPC) PushQuoteDay(req pb.Service_PushQuoteDayServer) error {
+	var (
+		size       = 100
+		dirtyCache = make([]*model.Quote, 0, size)
+		cache      = make([]*model.Quote, 0, size)
+		current    string
+	)
+	for {
+		quote, err := req.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+
+		// 构建数据 day
+		t, err := time.ParseInLocation("2006-01-02", quote.Date, time.Local)
+		if err != nil {
+			return err
+		}
+		day, err := service.BuildQuoteDay(quote, t)
+		if err != nil {
+			return err
+		}
+		// 写入缓存
+		if current == "" {
+			current = quote.Date
+		}
+		if current == quote.Date {
+			cache = append(cache, day)
+		} else {
+			dirtyCache = append(dirtyCache, day)
+		}
+
+		switch {
+		case len(dirtyCache) >= size:
+		case len(cache) >= size:
+		default:
+		}
+	}
+	return nil
+}
+
+func (g *GRPC) PushQuoteWeek(ctx context.Context, req *wrapperspb.StringValue) (*pb.Count, error) {
+	date, err := time.ParseInLocation("2006-01-02", req.Value, time.Local)
+	if err != nil {
+		return nil, err
+	}
+	if date.Weekday() != time.Friday {
 		return &pb.Count{}, nil
 	}
 
@@ -80,17 +128,27 @@ func (g *GRPC) PushQuoteWeek(context.Context, *emptypb.Empty) (*pb.Count, error)
 		}
 
 		for _, stock := range stocks {
-			week, err := service.BuildQuoteWeek(stock.Code, today)
+			total++
+			week, err := service.BuildQuoteWeek(stock.Code, date)
+			if err == service.ErrNoData {
+				continue
+			}
 			if err != nil {
 				return nil, err
 			}
 			weeks = append(weeks, week)
-
 		}
+
+		affected, err := service.SaveQuotes(weeks, model.Week, date.Format("2006-01-02"), timeout)
+		if err != nil {
+			return nil, err
+		}
+		weeks = weeks[:0]
+		success += affected
+
 		if int64(len(stocks)) < limit {
 			break
 		}
-		offset += limit
 	}
 
 	return &pb.Count{Total: total, Success: success}, nil
