@@ -54,18 +54,20 @@ func (g *GRPC) Version(ctx context.Context, _ *emptypb.Empty) (*wrapperspb.Strin
 	return &wrapperspb.StringValue{Value: buf.String()}, nil
 }
 
-//  PushQuoteWeek(context.Context, *emptypb.Empty) (*Count, error)
-// 	PushQuoteDay(Service_PushQuoteDayServer) error
-// 	PushStock(Service_PushStockServer) error
-// 	GetStockFull(*emptypb.Empty, Service_GetStockFullServer) error
-// 	GetQuoteLatest(*QuoteRequest, Service_GetQuoteLatestServer) error
+// Version(context.Context, *emptypb.Empty) (*wrapperspb.StringValue, error)
+// PushQuoteWeek(context.Context, *wrapperspb.StringValue) (*Count, error)
+// PushQuoteDay(Service_PushQuoteDayServer) error
+// PushStock(Service_PushStockServer) error
+// GetStockFull(*emptypb.Empty, Service_GetStockFullServer) error
+// GetQuoteLatest(*QuoteRequest, Service_GetQuoteLatestServer) error
 
 func (g *GRPC) PushQuoteDay(req pb.Service_PushQuoteDayServer) error {
 	var (
-		size       = 100
-		dirtyCache = make([]*model.Quote, 0, size)
-		cache      = make([]*model.Quote, 0, size)
-		current    string
+		timeout = 10 * time.Second
+		size    = 50
+		total   int64
+		success int64
+		days    = make([]*model.Quote, 0, size)
 	)
 	for {
 		quote, err := req.Recv()
@@ -75,7 +77,7 @@ func (g *GRPC) PushQuoteDay(req pb.Service_PushQuoteDayServer) error {
 		if err != nil {
 			return err
 		}
-
+		total++
 		// 构建数据 day
 		t, err := time.ParseInLocation("2006-01-02", quote.Date, time.Local)
 		if err != nil {
@@ -85,23 +87,24 @@ func (g *GRPC) PushQuoteDay(req pb.Service_PushQuoteDayServer) error {
 		if err != nil {
 			return err
 		}
-		// 写入缓存
-		if current == "" {
-			current = quote.Date
-		}
-		if current == quote.Date {
-			cache = append(cache, day)
-		} else {
-			dirtyCache = append(dirtyCache, day)
-		}
-
-		switch {
-		case len(dirtyCache) >= size:
-		case len(cache) >= size:
-		default:
+		days = append(days, day)
+		if len(days) >= size {
+			affected, err := service.SaveQuotes(days, model.Day, timeout)
+			if err != nil {
+				return err
+			}
+			days = days[:0]
+			success += affected
 		}
 	}
-	return nil
+
+	affected, err := service.SaveQuotes(days, model.Day, timeout)
+	if err != nil {
+		return err
+	}
+	success += affected
+
+	return req.SendAndClose(&pb.Count{Total: total, Success: success})
 }
 
 func (g *GRPC) PushQuoteWeek(ctx context.Context, req *wrapperspb.StringValue) (*pb.Count, error) {
@@ -115,7 +118,7 @@ func (g *GRPC) PushQuoteWeek(ctx context.Context, req *wrapperspb.StringValue) (
 
 	var (
 		offset  int64 = 0
-		limit   int64 = 100
+		limit   int64 = 50
 		total   int64
 		success int64
 		timeout = 10 * time.Second
@@ -139,7 +142,7 @@ func (g *GRPC) PushQuoteWeek(ctx context.Context, req *wrapperspb.StringValue) (
 			weeks = append(weeks, week)
 		}
 
-		affected, err := service.SaveQuotes(weeks, model.Week, date.Format("2006-01-02"), timeout)
+		affected, err := service.SaveQuotes(weeks, model.Week, timeout)
 		if err != nil {
 			return nil, err
 		}
@@ -152,6 +155,48 @@ func (g *GRPC) PushQuoteWeek(ctx context.Context, req *wrapperspb.StringValue) (
 	}
 
 	return &pb.Count{Total: total, Success: success}, nil
+}
+
+func (g *GRPC) PushStock(req pb.Service_PushStockServer) error {
+	var (
+		timeout        = 10 * time.Second
+		size           = 50
+		total, success int64
+		stocks         = make([]*model.Stock, 0, size)
+	)
+	for {
+		stock, err := req.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		total++
+
+		stocks = append(stocks, &model.Stock{
+			Code:            stock.Code,
+			Name:            stock.Name,
+			Suspend:         stock.Suspend,
+			CreateTimestamp: time.Now(),
+		})
+		if len(stocks) >= size {
+			affected, err := service.SaveStocks(stocks, timeout)
+			if err != nil {
+				return err
+			}
+			stocks = stocks[:0]
+			success += affected
+		}
+	}
+
+	affected, err := service.SaveStocks(stocks, timeout)
+	if err != nil {
+		return err
+	}
+	success += affected
+
+	return req.SendAndClose(&pb.Count{Total: total, Success: success})
 }
 
 func (g *GRPC) GetStockFull(_ *emptypb.Empty, resp pb.Service_GetStockFullServer) error {
@@ -237,6 +282,12 @@ func StartupGRPC() error {
 	server = grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
 			middleware.UnaryServerRecoveryInterceptor,
+			middleware.UnaryServerLogInterceptor,
+			middleware.UnaryServerValidatorInterceptor,
+		),
+		grpc.ChainStreamInterceptor(
+			middleware.StreamServerRecoveryInterceptor,
+			middleware.StreamServerValidatorInterceptor,
 		),
 	)
 
