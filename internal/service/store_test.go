@@ -2,6 +2,7 @@ package service
 
 import (
 	"log"
+	"sync"
 	"testing"
 	"time"
 
@@ -60,6 +61,8 @@ var (
 	}
 )
 
+var onece sync.Once
+
 func init() {
 	mysql.DSN = "root:root@tcp(localhost:3306)/robber?charset=utf8mb4&parseTime=true&loc=Local"
 	mysql.MinOpen = 5
@@ -67,11 +70,27 @@ func init() {
 	if err := mysql.Build(); err != nil {
 		log.Fatal(err)
 	}
-	truncateStock()
+	onece.Do(func() {
+		truncateStock()
+		truncateQuoteDay()
+		truncateQuoteWeek()
+	})
 }
 
 func truncateStock() {
 	if _, err := mysql.DB.Exec("truncate table stock"); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func truncateQuoteDay() {
+	if _, err := mysql.DB.Exec("truncate table quote_day"); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func truncateQuoteWeek() {
+	if _, err := mysql.DB.Exec("truncate table quote_week"); err != nil {
 		log.Fatal(err)
 	}
 }

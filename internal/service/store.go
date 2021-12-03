@@ -53,8 +53,7 @@ func SaveQuotes(quotes []*model.Quote, mode string, timeout time.Duration) (int6
 		if date == current {
 			codes = append(codes, quote.Code)
 			cache = append(cache, quote)
-		}
-		if date != current || len(quotes)-1 == i {
+		} else {
 			_, err = model.QuoteWithDeleteManyByCodesAndDate(tx, mode, codes, date, timeout)
 			if err != nil {
 				tx.Rollback()
@@ -72,6 +71,19 @@ func SaveQuotes(quotes []*model.Quote, mode string, timeout time.Duration) (int6
 			cache = cache[:0]
 			codes = append(codes, quote.Code)
 			cache = append(cache, quote)
+		}
+		if len(quotes)-1 == i {
+			_, err = model.QuoteWithDeleteManyByCodesAndDate(tx, mode, codes, date, timeout)
+			if err != nil {
+				tx.Rollback()
+				return 0, err
+			}
+			affected, err := model.QuoteWithInsertMany(tx, mode, cache, timeout)
+			if err != nil {
+				tx.Rollback()
+				return 0, err
+			}
+			count += affected
 		}
 	}
 
