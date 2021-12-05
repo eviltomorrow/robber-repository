@@ -195,7 +195,6 @@ func (g *GRPC) PushStock(req pb.Service_PushStockServer) error {
 		return err
 	}
 	success += affected
-
 	return req.SendAndClose(&pb.Count{Total: total, Success: success})
 }
 
@@ -283,11 +282,9 @@ func StartupGRPC() error {
 		grpc.ChainUnaryInterceptor(
 			middleware.UnaryServerRecoveryInterceptor,
 			middleware.UnaryServerLogInterceptor,
-			middleware.UnaryServerValidatorInterceptor,
 		),
 		grpc.ChainStreamInterceptor(
 			middleware.StreamServerRecoveryInterceptor,
-			middleware.StreamServerValidatorInterceptor,
 		),
 	)
 

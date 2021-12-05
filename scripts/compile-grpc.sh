@@ -39,7 +39,7 @@ for file_name in $file_names
 do
     file_path=$proto_dir/$file_name
     if [ "${file_path##*.}x" == "proto"x ]; then
-        ${cur_dir}/tools/protoc/${GOOS}_${GOARCH}/bin/protoc --proto_path="" -I . --govalidators_out=${pb_dir} --go_out=${pb_dir} --go-grpc_out=${pb_dir} $file_name
+        ${cur_dir}/tools/protoc/${GOOS}_${GOARCH}/bin/protoc --proto_path="" -I . --go_out=${pb_dir} --go-grpc_out=${pb_dir} $file_name
         
         code=$(echo $?)
         if [ $code = 0 ]; then
