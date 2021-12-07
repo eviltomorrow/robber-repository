@@ -81,7 +81,7 @@ func (g *GRPC) PushQuoteDay(req pb.Service_PushQuoteDayServer) error {
 		// 构建数据 day
 		t, err := time.ParseInLocation("2006-01-02", quote.Date, time.Local)
 		if err != nil {
-			return err
+			return fmt.Errorf("parse in location failure, nest error: %v, data: %s", err, quote.String())
 		}
 		day, err := service.BuildQuoteDay(quote, t)
 		if err != nil {
@@ -91,7 +91,7 @@ func (g *GRPC) PushQuoteDay(req pb.Service_PushQuoteDayServer) error {
 		if len(days) >= size {
 			affected, err := service.SaveQuotes(days, model.Day, timeout)
 			if err != nil {
-				return err
+				return fmt.Errorf("save quotes failure, nest error: %v, data: %s", err, quote.String())
 			}
 			days = days[:0]
 			success += affected
@@ -285,6 +285,7 @@ func StartupGRPC() error {
 		),
 		grpc.ChainStreamInterceptor(
 			middleware.StreamServerRecoveryInterceptor,
+			middleware.StreamServerLogInterceptor,
 		),
 	)
 

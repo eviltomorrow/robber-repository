@@ -23,7 +23,7 @@ func BuildQuoteDay(data *pb.Quote, date time.Time) (*model.Quote, error) {
 	}
 
 	var xd float64 = 1.0
-	if len(latest) == 1 && latest[0].Close != data.YesterdayClosed {
+	if len(latest) == 1 && latest[0].Date.Format("2006-01-02") != data.Date && latest[0].Close != data.YesterdayClosed {
 		xd = data.YesterdayClosed / latest[0].Close
 	}
 
