@@ -78,6 +78,10 @@ func (g *GRPC) PushQuoteDay(req pb.Service_PushQuoteDayServer) error {
 			return err
 		}
 		total++
+
+		if quote.Volume == 0 {
+			continue
+		}
 		// 构建数据 day
 		t, err := time.ParseInLocation("2006-01-02", quote.Date, time.Local)
 		if err != nil {
@@ -91,7 +95,7 @@ func (g *GRPC) PushQuoteDay(req pb.Service_PushQuoteDayServer) error {
 		if len(days) >= size {
 			affected, err := service.SaveQuotes(days, model.Day, timeout)
 			if err != nil {
-				return fmt.Errorf("save quotes failure, nest error: %v, data: %s", err, quote.String())
+				return err
 			}
 			days = days[:0]
 			success += affected
@@ -152,6 +156,7 @@ func (g *GRPC) PushQuoteWeek(ctx context.Context, req *wrapperspb.StringValue) (
 		if int64(len(stocks)) < limit {
 			break
 		}
+		offset += limit
 	}
 
 	return &pb.Count{Total: total, Success: success}, nil
