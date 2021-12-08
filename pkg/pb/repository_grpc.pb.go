@@ -25,9 +25,7 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ServiceClient interface {
 	Version(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*wrapperspb.StringValue, error)
-	PushQuoteWeek(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*Count, error)
-	PushQuoteDay(ctx context.Context, opts ...grpc.CallOption) (Service_PushQuoteDayClient, error)
-	PushStock(ctx context.Context, opts ...grpc.CallOption) (Service_PushStockClient, error)
+	PushData(ctx context.Context, opts ...grpc.CallOption) (Service_PushDataClient, error)
 	GetStockFull(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (Service_GetStockFullClient, error)
 	GetQuoteLatest(ctx context.Context, in *QuoteRequest, opts ...grpc.CallOption) (Service_GetQuoteLatestClient, error)
 }
@@ -49,77 +47,34 @@ func (c *serviceClient) Version(ctx context.Context, in *emptypb.Empty, opts ...
 	return out, nil
 }
 
-func (c *serviceClient) PushQuoteWeek(ctx context.Context, in *wrapperspb.StringValue, opts ...grpc.CallOption) (*Count, error) {
-	out := new(Count)
-	err := c.cc.Invoke(ctx, "/repository.Service/PushQuoteWeek", in, out, opts...)
+func (c *serviceClient) PushData(ctx context.Context, opts ...grpc.CallOption) (Service_PushDataClient, error) {
+	stream, err := c.cc.NewStream(ctx, &Service_ServiceDesc.Streams[0], "/repository.Service/PushData", opts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
-}
-
-func (c *serviceClient) PushQuoteDay(ctx context.Context, opts ...grpc.CallOption) (Service_PushQuoteDayClient, error) {
-	stream, err := c.cc.NewStream(ctx, &Service_ServiceDesc.Streams[0], "/repository.Service/PushQuoteDay", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &servicePushQuoteDayClient{stream}
+	x := &servicePushDataClient{stream}
 	return x, nil
 }
 
-type Service_PushQuoteDayClient interface {
-	Send(*Quote) error
-	CloseAndRecv() (*Count, error)
+type Service_PushDataClient interface {
+	Send(*Metadata) error
+	CloseAndRecv() (*emptypb.Empty, error)
 	grpc.ClientStream
 }
 
-type servicePushQuoteDayClient struct {
+type servicePushDataClient struct {
 	grpc.ClientStream
 }
 
-func (x *servicePushQuoteDayClient) Send(m *Quote) error {
+func (x *servicePushDataClient) Send(m *Metadata) error {
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *servicePushQuoteDayClient) CloseAndRecv() (*Count, error) {
+func (x *servicePushDataClient) CloseAndRecv() (*emptypb.Empty, error) {
 	if err := x.ClientStream.CloseSend(); err != nil {
 		return nil, err
 	}
-	m := new(Count)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func (c *serviceClient) PushStock(ctx context.Context, opts ...grpc.CallOption) (Service_PushStockClient, error) {
-	stream, err := c.cc.NewStream(ctx, &Service_ServiceDesc.Streams[1], "/repository.Service/PushStock", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &servicePushStockClient{stream}
-	return x, nil
-}
-
-type Service_PushStockClient interface {
-	Send(*Stock) error
-	CloseAndRecv() (*Count, error)
-	grpc.ClientStream
-}
-
-type servicePushStockClient struct {
-	grpc.ClientStream
-}
-
-func (x *servicePushStockClient) Send(m *Stock) error {
-	return x.ClientStream.SendMsg(m)
-}
-
-func (x *servicePushStockClient) CloseAndRecv() (*Count, error) {
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	m := new(Count)
+	m := new(emptypb.Empty)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -127,7 +82,7 @@ func (x *servicePushStockClient) CloseAndRecv() (*Count, error) {
 }
 
 func (c *serviceClient) GetStockFull(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (Service_GetStockFullClient, error) {
-	stream, err := c.cc.NewStream(ctx, &Service_ServiceDesc.Streams[2], "/repository.Service/GetStockFull", opts...)
+	stream, err := c.cc.NewStream(ctx, &Service_ServiceDesc.Streams[1], "/repository.Service/GetStockFull", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +114,7 @@ func (x *serviceGetStockFullClient) Recv() (*Stock, error) {
 }
 
 func (c *serviceClient) GetQuoteLatest(ctx context.Context, in *QuoteRequest, opts ...grpc.CallOption) (Service_GetQuoteLatestClient, error) {
-	stream, err := c.cc.NewStream(ctx, &Service_ServiceDesc.Streams[3], "/repository.Service/GetQuoteLatest", opts...)
+	stream, err := c.cc.NewStream(ctx, &Service_ServiceDesc.Streams[2], "/repository.Service/GetQuoteLatest", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -195,9 +150,7 @@ func (x *serviceGetQuoteLatestClient) Recv() (*Quote, error) {
 // for forward compatibility
 type ServiceServer interface {
 	Version(context.Context, *emptypb.Empty) (*wrapperspb.StringValue, error)
-	PushQuoteWeek(context.Context, *wrapperspb.StringValue) (*Count, error)
-	PushQuoteDay(Service_PushQuoteDayServer) error
-	PushStock(Service_PushStockServer) error
+	PushData(Service_PushDataServer) error
 	GetStockFull(*emptypb.Empty, Service_GetStockFullServer) error
 	GetQuoteLatest(*QuoteRequest, Service_GetQuoteLatestServer) error
 	mustEmbedUnimplementedServiceServer()
@@ -210,14 +163,8 @@ type UnimplementedServiceServer struct {
 func (UnimplementedServiceServer) Version(context.Context, *emptypb.Empty) (*wrapperspb.StringValue, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Version not implemented")
 }
-func (UnimplementedServiceServer) PushQuoteWeek(context.Context, *wrapperspb.StringValue) (*Count, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method PushQuoteWeek not implemented")
-}
-func (UnimplementedServiceServer) PushQuoteDay(Service_PushQuoteDayServer) error {
-	return status.Errorf(codes.Unimplemented, "method PushQuoteDay not implemented")
-}
-func (UnimplementedServiceServer) PushStock(Service_PushStockServer) error {
-	return status.Errorf(codes.Unimplemented, "method PushStock not implemented")
+func (UnimplementedServiceServer) PushData(Service_PushDataServer) error {
+	return status.Errorf(codes.Unimplemented, "method PushData not implemented")
 }
 func (UnimplementedServiceServer) GetStockFull(*emptypb.Empty, Service_GetStockFullServer) error {
 	return status.Errorf(codes.Unimplemented, "method GetStockFull not implemented")
@@ -256,70 +203,26 @@ func _Service_Version_Handler(srv interface{}, ctx context.Context, dec func(int
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Service_PushQuoteWeek_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(wrapperspb.StringValue)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ServiceServer).PushQuoteWeek(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/repository.Service/PushQuoteWeek",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ServiceServer).PushQuoteWeek(ctx, req.(*wrapperspb.StringValue))
-	}
-	return interceptor(ctx, in, info, handler)
+func _Service_PushData_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(ServiceServer).PushData(&servicePushDataServer{stream})
 }
 
-func _Service_PushQuoteDay_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(ServiceServer).PushQuoteDay(&servicePushQuoteDayServer{stream})
-}
-
-type Service_PushQuoteDayServer interface {
-	SendAndClose(*Count) error
-	Recv() (*Quote, error)
+type Service_PushDataServer interface {
+	SendAndClose(*emptypb.Empty) error
+	Recv() (*Metadata, error)
 	grpc.ServerStream
 }
 
-type servicePushQuoteDayServer struct {
+type servicePushDataServer struct {
 	grpc.ServerStream
 }
 
-func (x *servicePushQuoteDayServer) SendAndClose(m *Count) error {
+func (x *servicePushDataServer) SendAndClose(m *emptypb.Empty) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func (x *servicePushQuoteDayServer) Recv() (*Quote, error) {
-	m := new(Quote)
-	if err := x.ServerStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func _Service_PushStock_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(ServiceServer).PushStock(&servicePushStockServer{stream})
-}
-
-type Service_PushStockServer interface {
-	SendAndClose(*Count) error
-	Recv() (*Stock, error)
-	grpc.ServerStream
-}
-
-type servicePushStockServer struct {
-	grpc.ServerStream
-}
-
-func (x *servicePushStockServer) SendAndClose(m *Count) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func (x *servicePushStockServer) Recv() (*Stock, error) {
-	m := new(Stock)
+func (x *servicePushDataServer) Recv() (*Metadata, error) {
+	m := new(Metadata)
 	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -379,20 +282,11 @@ var Service_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "Version",
 			Handler:    _Service_Version_Handler,
 		},
-		{
-			MethodName: "PushQuoteWeek",
-			Handler:    _Service_PushQuoteWeek_Handler,
-		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
-			StreamName:    "PushQuoteDay",
-			Handler:       _Service_PushQuoteDay_Handler,
-			ClientStreams: true,
-		},
-		{
-			StreamName:    "PushStock",
-			Handler:       _Service_PushStock_Handler,
+			StreamName:    "PushData",
+			Handler:       _Service_PushData_Handler,
 			ClientStreams: true,
 		},
 		{

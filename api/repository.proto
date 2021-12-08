@@ -9,16 +9,9 @@ package repository;
 service Service {
     rpc Version(google.protobuf.Empty) returns (google.protobuf.StringValue){}
 
-    rpc PushQuoteWeek(google.protobuf.StringValue) returns (Count){}
-    rpc PushQuoteDay(stream Quote) returns (Count){}
-    rpc PushStock(stream Stock) returns (Count){}
+    rpc PushData(stream Metadata) returns (google.protobuf.Empty){}
     rpc GetStockFull(google.protobuf.Empty) returns (stream Stock){}
     rpc GetQuoteLatest(QuoteRequest) returns (stream Quote){}
-}
-
-message Count {
-    int64 total = 1;
-    int64 success = 2;
 }
 
 message QuoteRequest {
@@ -30,6 +23,21 @@ message QuoteRequest {
         Week = 1;
     };
     Mode mode = 4;
+}
+
+message Metadata {
+    string code = 1;
+    string name = 2;
+    double open = 3;
+    double yesterday_closed = 4;
+    double latest = 5;
+    double high = 6;
+    double low = 7;
+    uint64 volume = 8;
+    double account = 9;
+    string date = 10;
+    string time = 11;
+    string suspend = 12;
 }
 
 message Stock {
@@ -49,5 +57,4 @@ message Quote {
     double account = 8;
     string date = 9;
     int32 num_of_year = 10;
-    double xd = 11;
 }

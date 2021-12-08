@@ -38,6 +38,10 @@ type GRPC struct {
 	pb.UnimplementedServiceServer
 }
 
+// PushData(Service_PushDataServer) error
+// GetStockFull(*emptypb.Empty, Service_GetStockFullServer) error
+// GetQuoteLatest(*QuoteRequest, Service_GetQuoteLatestServer) error
+
 func (g *GRPC) Version(ctx context.Context, _ *emptypb.Empty) (*wrapperspb.StringValue, error) {
 	var buf bytes.Buffer
 	buf.WriteString("Server: \r\n")
@@ -54,153 +58,88 @@ func (g *GRPC) Version(ctx context.Context, _ *emptypb.Empty) (*wrapperspb.Strin
 	return &wrapperspb.StringValue{Value: buf.String()}, nil
 }
 
-// Version(context.Context, *emptypb.Empty) (*wrapperspb.StringValue, error)
-// PushQuoteWeek(context.Context, *wrapperspb.StringValue) (*Count, error)
-// PushQuoteDay(Service_PushQuoteDayServer) error
-// PushStock(Service_PushStockServer) error
-// GetStockFull(*emptypb.Empty, Service_GetStockFullServer) error
-// GetQuoteLatest(*QuoteRequest, Service_GetQuoteLatestServer) error
-
-func (g *GRPC) PushQuoteDay(req pb.Service_PushQuoteDayServer) error {
+func (g *GRPC) PushData(req pb.Service_PushDataServer) error {
 	var (
-		timeout = 10 * time.Second
+		timeout = 20 * time.Second
 		size    = 50
-		total   int64
-		success int64
+		stocks  = make([]*model.Stock, 0, size)
 		days    = make([]*model.Quote, 0, size)
+		weeks   = make([]*model.Quote, 0, size)
 	)
 	for {
-		quote, err := req.Recv()
+		data, err := req.Recv()
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
 			return err
 		}
-		total++
-
-		if quote.Volume == 0 {
-			continue
-		}
-		// 构建数据 day
-		t, err := time.ParseInLocation("2006-01-02", quote.Date, time.Local)
-		if err != nil {
-			return fmt.Errorf("parse in location failure, nest error: %v, data: %s", err, quote.String())
-		}
-		day, err := service.BuildQuoteDay(quote, t)
-		if err != nil {
-			return err
-		}
-		days = append(days, day)
-		if len(days) >= size {
-			affected, err := service.SaveQuotes(days, model.Day, timeout)
-			if err != nil {
-				return err
-			}
-			days = days[:0]
-			success += affected
-		}
-	}
-
-	affected, err := service.SaveQuotes(days, model.Day, timeout)
-	if err != nil {
-		return err
-	}
-	success += affected
-
-	return req.SendAndClose(&pb.Count{Total: total, Success: success})
-}
-
-func (g *GRPC) PushQuoteWeek(ctx context.Context, req *wrapperspb.StringValue) (*pb.Count, error) {
-	date, err := time.ParseInLocation("2006-01-02", req.Value, time.Local)
-	if err != nil {
-		return nil, err
-	}
-	if date.Weekday() != time.Friday {
-		return &pb.Count{}, nil
-	}
-
-	var (
-		offset  int64 = 0
-		limit   int64 = 50
-		total   int64
-		success int64
-		timeout = 10 * time.Second
-		weeks   = make([]*model.Quote, 0, limit)
-	)
-	for {
-		stocks, err := model.StockWithSelectRange(mysql.DB, offset, limit, timeout)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, stock := range stocks {
-			total++
-			week, err := service.BuildQuoteWeek(stock.Code, date)
-			if err == service.ErrNoData {
-				continue
-			}
-			if err != nil {
-				return nil, err
-			}
-			weeks = append(weeks, week)
-		}
-
-		affected, err := service.SaveQuotes(weeks, model.Week, timeout)
-		if err != nil {
-			return nil, err
-		}
-		weeks = weeks[:0]
-		success += affected
-
-		if int64(len(stocks)) < limit {
-			break
-		}
-		offset += limit
-	}
-
-	return &pb.Count{Total: total, Success: success}, nil
-}
-
-func (g *GRPC) PushStock(req pb.Service_PushStockServer) error {
-	var (
-		timeout        = 10 * time.Second
-		size           = 50
-		total, success int64
-		stocks         = make([]*model.Stock, 0, size)
-	)
-	for {
-		stock, err := req.Recv()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return err
-		}
-		total++
 
 		stocks = append(stocks, &model.Stock{
-			Code:            stock.Code,
-			Name:            stock.Name,
-			Suspend:         stock.Suspend,
+			Code:            data.Code,
+			Name:            data.Name,
+			Suspend:         data.Suspend,
 			CreateTimestamp: time.Now(),
 		})
+
 		if len(stocks) >= size {
-			affected, err := service.SaveStocks(stocks, timeout)
-			if err != nil {
-				return err
+			if _, err := service.SaveStocks(stocks, timeout); err != nil {
+				zlog.Error("SaveStocks failure", zap.Any("stocks", stocks), zap.Error(err))
 			}
 			stocks = stocks[:0]
-			success += affected
+		}
+
+		t, err := time.ParseInLocation("2006-01-02", data.Date, time.Local)
+		if err != nil {
+			zlog.Error("ParseInLocation date failure", zap.String("data", data.String()), zap.Error(err))
+			continue
+		}
+
+		day, err := service.BuildQuoteDay(data, t)
+		if err != nil {
+			zlog.Error("BuildQuoteDay failure", zap.String("data", data.String()), zap.Error(err))
+		} else {
+			days = append(days, day)
+		}
+		if len(days) >= size {
+			if _, err := service.SaveQuotes(days, model.Day, timeout); err != nil {
+				zlog.Error("SaveQuotes day failure", zap.Any("days", days), zap.Error(err))
+			}
+			days = days[:0]
+		}
+
+		if t.Weekday() == time.Friday {
+			week, err := service.BuildQuoteWeek(data.Code, t)
+			if err != nil {
+				zlog.Error("BuildQuoteWeek failure", zap.String("code", data.Code), zap.Error(err))
+			} else {
+				weeks = append(weeks, week)
+			}
+		}
+		if len(weeks) >= size {
+			if _, err := service.SaveQuotes(weeks, model.Week, timeout); err != nil {
+				zlog.Error("SaveQuotes week failure", zap.Any("weeks", weeks), zap.Error(err))
+			}
+			weeks = weeks[:0]
 		}
 	}
 
-	affected, err := service.SaveStocks(stocks, timeout)
-	if err != nil {
-		return err
+	if len(stocks) != 0 {
+		if _, err := service.SaveStocks(stocks, timeout); err != nil {
+			zlog.Error("SaveStocks failure", zap.Any("stocks", stocks), zap.Error(err))
+		}
 	}
-	success += affected
-	return req.SendAndClose(&pb.Count{Total: total, Success: success})
+	if len(days) != 0 {
+		if _, err := service.SaveQuotes(days, model.Day, timeout); err != nil {
+			zlog.Error("SaveQuotes day failure", zap.Any("days", days), zap.Error(err))
+		}
+	}
+	if len(weeks) != 0 {
+		if _, err := service.SaveQuotes(weeks, model.Week, timeout); err != nil {
+			zlog.Error("SaveQuotes week failure", zap.Any("weeks", weeks), zap.Error(err))
+		}
+	}
+	return req.SendAndClose(&emptypb.Empty{})
 }
 
 func (g *GRPC) GetStockFull(_ *emptypb.Empty, resp pb.Service_GetStockFullServer) error {

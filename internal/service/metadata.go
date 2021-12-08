@@ -16,7 +16,7 @@ var (
 	ErrNoData = errors.New("no data")
 )
 
-func BuildQuoteDay(data *pb.Quote, date time.Time) (*model.Quote, error) {
+func BuildQuoteDay(data *pb.Metadata, date time.Time) (*model.Quote, error) {
 	latest, err := model.QuoteWithSelectManyLatest(mysql.DB, model.Day, data.Code, data.Date, 1, timeout)
 	if err != nil {
 		return nil, err
@@ -30,7 +30,7 @@ func BuildQuoteDay(data *pb.Quote, date time.Time) (*model.Quote, error) {
 	quote := &model.Quote{
 		Code:            data.Code,
 		Open:            data.Open,
-		Close:           data.Close,
+		Close:           data.Latest,
 		High:            data.High,
 		Low:             data.Low,
 		YesterdayClosed: data.YesterdayClosed,

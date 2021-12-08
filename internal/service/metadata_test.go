@@ -42,17 +42,16 @@ var (
 		CreateTimestamp: time.Now(),
 	}
 
-	pbdata = &pb.Quote{
+	pbdata = &pb.Metadata{
 		Code:            "sh601012",
 		Open:            85.07,
-		Close:           86.98,
+		Latest:          86.98,
 		High:            87.64,
 		Low:             85.00,
 		YesterdayClosed: 86.77,
 		Volume:          1245358,
 		Account:         136587152,
 		Date:            date.Add(24 * time.Hour).Format("2006-01-02"),
-		NumOfYear:       int32(date.Add(24 * time.Hour).YearDay()),
 	}
 )
 
