@@ -17,6 +17,8 @@ import (
 	"github.com/eviltomorrow/robber-repository/pkg/client"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
+
+	_ "net/http/pprof"
 )
 
 var rootCmd = &cobra.Command{
