@@ -1,5 +1,7 @@
 # This how we want to name the binary output
 #
+version=v3.0
+#
 BINARY=robber-repository
 GOFILE=cmd/robber-repository.go
 GOPATH ?= $(shell go env GOPATH)
@@ -84,9 +86,14 @@ build: fmt
 # Build docker
 docker:
 	@echo "$(CGREEN)=> Building for docker ...$(CEND)"
-	@mkdir -p bin
-	docker build -t robber:$(version) .
+	docker build -t registry.cn-hangzhou.aliyuncs.com/eviltomorrow/robber-repository:$(version) .
 	@echo "$(CGREEN)=> Build Success!$(CEND)"
+
+# Publish docker
+publish:
+	@echo "$(CGREEN)=> Publishing for docker ...$(CEND)"
+	docker push registry.cn-hangzhou.aliyuncs.com/eviltomorrow/robber-repository:$(version)
+	@echo "$(CGREEN)=> Publish Success!$(CEND)"
 
 # Installs our project: copies binaries
 install: build

@@ -2,17 +2,17 @@
 disable-timestamp = false
 level = "info"
 format = "text"
-filename = "/tmp/robber-repository/data.log"
+filename = "/var/log/robber-repository/data.log"
 maxsize = 20
 
 [mysql]
-dsn = "root:root@tcp(localhost:3306)/robber?charset=utf8mb4&parseTime=true&loc=Local"
+dsn = "root:root@tcp(172.17.0.1:3306)/robber?charset=utf8mb4&parseTime=true&loc=Local"
 min-open = 5
 max-open = 10
 
 [etcd]
 endpoints = [
-	"localhost:2379",
+	"172.17.0.1:2379",
 ]
 
 [server]
