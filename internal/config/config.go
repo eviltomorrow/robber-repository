@@ -61,17 +61,17 @@ var GlobalConfig = &Config{
 		MaxSize:          20,
 	},
 	MySQL: MySQL{
-		DSN:     "root:root@tcp(localhost:3306)/robber?charset=utf8mb4&parseTime=true&loc=Local",
+		DSN:     "root:root@tcp(127.0.0.1:3306)/robber?charset=utf8mb4&parseTime=true&loc=Local",
 		MinOpen: 5,
 		MaxOpen: 10,
 	},
 	Etcd: Etcd{
 		Endpoints: []string{
-			"localhost:2379",
+			"127.0.0.1:2379",
 		},
 	},
 	Server: Server{
 		Host: "0.0.0.0",
-		Port: 19092,
+		Port: 19091,
 	},
 }

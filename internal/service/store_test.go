@@ -64,7 +64,7 @@ var (
 var onece sync.Once
 
 func init() {
-	mysql.DSN = "root:root@tcp(localhost:3306)/robber?charset=utf8mb4&parseTime=true&loc=Local"
+	mysql.DSN = "root:root@tcp(127.0.0.1:3306)/robber?charset=utf8mb4&parseTime=true&loc=Local"
 	mysql.MinOpen = 5
 	mysql.MaxOpen = 10
 	if err := mysql.Build(); err != nil {

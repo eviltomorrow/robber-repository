@@ -20,5 +20,5 @@ COPY --from=builder /app/config/config.toml /etc/robber-repository/config.toml
 
 VOLUME ["/var/log/robber-repository"]
 
-EXPOSE 19092
+EXPOSE 19091
 ENTRYPOINT ["/bin/robber-repository", "-c", "/etc/robber-repository/config.toml"]
