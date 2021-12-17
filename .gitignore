@@ -16,3 +16,6 @@
 
 bin/robber-repository
 vendor
+package
+log
+robber-repository.pid

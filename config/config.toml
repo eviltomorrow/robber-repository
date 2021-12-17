@@ -2,7 +2,7 @@
 disable-timestamp = false
 level = "info"
 format = "text"
-filename = "/tmp/robber-repository/data.log"
+filename = "../log/data.log"
 maxsize = 20
 
 [mysql]

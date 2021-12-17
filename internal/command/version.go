@@ -24,7 +24,7 @@ func init() {
 func printClientVersion() {
 	var buf bytes.Buffer
 	buf.WriteString("Client: \r\n")
-	buf.WriteString(fmt.Sprintf("   robber-datasource Version (Current): %s\r\n", system.MainVersion))
+	buf.WriteString(fmt.Sprintf("   Robber-repository Version (Current): %s\r\n", system.MainVersion))
 	buf.WriteString(fmt.Sprintf("   Go Version: %v\r\n", system.GoVersion))
 	buf.WriteString(fmt.Sprintf("   Go OS/Arch: %v\r\n", system.GoOSArch))
 	buf.WriteString(fmt.Sprintf("   Git Sha: %v\r\n", system.GitSha))
