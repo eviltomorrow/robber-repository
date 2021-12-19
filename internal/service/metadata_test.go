@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eviltomorrow/robber-core/pkg/mysql"
 	"github.com/eviltomorrow/robber-repository/internal/model"
 	"github.com/eviltomorrow/robber-repository/pkg/pb"
 	"github.com/stretchr/testify/assert"
@@ -83,4 +84,34 @@ func TestBuildQuoteWeek(t *testing.T) {
 	_assert.Equal(float64(1.0), md3.Xd)
 	_assert.Equal(Metadata2.Close, md3.Close)
 	_assert.Equal(Metadata1.Low, md3.Low)
+}
+
+func TestBuildQuoteWeek2(t *testing.T) {
+	var (
+		offset int64 = 0
+		limit  int64 = 30
+		date         = time.Date(2021, time.December, 17, 0, 0, 0, 0, time.Local)
+
+		count int
+	)
+	for {
+		stocks, err := model.StockWithSelectRange(mysql.DB, offset, limit, timeout)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, stock := range stocks {
+			week, err := BuildQuoteWeek(stock.Code, date)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Logf("week: %s", week)
+			count++
+		}
+		if len(stocks) < int(limit) {
+			break
+		}
+		offset += limit
+	}
+
+	t.Logf("count: %v\r\n", count)
 }

@@ -95,10 +95,10 @@ var TaskFields = []string{
 type Task struct {
 	Date            string       `json:"date"`
 	Completed       int8         `json:"completed"`
-	MetadataCount   int          `json:"metadata_count"`
-	StockCount      int          `json:"stock_count"`
-	DayCount        int          `json:"day_count"`
-	WeekCount       int          `json:"week_count"`
+	MetadataCount   int64        `json:"metadata_count"`
+	StockCount      int64        `json:"stock_count"`
+	DayCount        int64        `json:"day_count"`
+	WeekCount       int64        `json:"week_count"`
 	CallbackURL     string       `json:"callback_url"`
 	CreateTimestamp time.Time    `json:"create_timestamp"`
 	ModifyTimestamp sql.NullTime `json:"modify_timestamp"`

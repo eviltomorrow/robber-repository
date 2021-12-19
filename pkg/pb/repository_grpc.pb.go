@@ -25,6 +25,8 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ServiceClient interface {
 	Version(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*wrapperspb.StringValue, error)
+	CreateTask(ctx context.Context, in *Task, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	Complete(ctx context.Context, in *Task, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	PushData(ctx context.Context, opts ...grpc.CallOption) (Service_PushDataClient, error)
 	GetStockFull(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (Service_GetStockFullClient, error)
 	GetQuoteLatest(ctx context.Context, in *QuoteRequest, opts ...grpc.CallOption) (Service_GetQuoteLatestClient, error)
@@ -47,6 +49,24 @@ func (c *serviceClient) Version(ctx context.Context, in *emptypb.Empty, opts ...
 	return out, nil
 }
 
+func (c *serviceClient) CreateTask(ctx context.Context, in *Task, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/repository.Service/CreateTask", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *serviceClient) Complete(ctx context.Context, in *Task, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/repository.Service/Complete", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *serviceClient) PushData(ctx context.Context, opts ...grpc.CallOption) (Service_PushDataClient, error) {
 	stream, err := c.cc.NewStream(ctx, &Service_ServiceDesc.Streams[0], "/repository.Service/PushData", opts...)
 	if err != nil {
@@ -58,7 +78,7 @@ func (c *serviceClient) PushData(ctx context.Context, opts ...grpc.CallOption) (
 
 type Service_PushDataClient interface {
 	Send(*Metadata) error
-	CloseAndRecv() (*emptypb.Empty, error)
+	CloseAndRecv() (*Count, error)
 	grpc.ClientStream
 }
 
@@ -70,11 +90,11 @@ func (x *servicePushDataClient) Send(m *Metadata) error {
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *servicePushDataClient) CloseAndRecv() (*emptypb.Empty, error) {
+func (x *servicePushDataClient) CloseAndRecv() (*Count, error) {
 	if err := x.ClientStream.CloseSend(); err != nil {
 		return nil, err
 	}
-	m := new(emptypb.Empty)
+	m := new(Count)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -150,6 +170,8 @@ func (x *serviceGetQuoteLatestClient) Recv() (*Quote, error) {
 // for forward compatibility
 type ServiceServer interface {
 	Version(context.Context, *emptypb.Empty) (*wrapperspb.StringValue, error)
+	CreateTask(context.Context, *Task) (*emptypb.Empty, error)
+	Complete(context.Context, *Task) (*emptypb.Empty, error)
 	PushData(Service_PushDataServer) error
 	GetStockFull(*emptypb.Empty, Service_GetStockFullServer) error
 	GetQuoteLatest(*QuoteRequest, Service_GetQuoteLatestServer) error
@@ -162,6 +184,12 @@ type UnimplementedServiceServer struct {
 
 func (UnimplementedServiceServer) Version(context.Context, *emptypb.Empty) (*wrapperspb.StringValue, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Version not implemented")
+}
+func (UnimplementedServiceServer) CreateTask(context.Context, *Task) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateTask not implemented")
+}
+func (UnimplementedServiceServer) Complete(context.Context, *Task) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Complete not implemented")
 }
 func (UnimplementedServiceServer) PushData(Service_PushDataServer) error {
 	return status.Errorf(codes.Unimplemented, "method PushData not implemented")
@@ -203,12 +231,48 @@ func _Service_Version_Handler(srv interface{}, ctx context.Context, dec func(int
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Service_CreateTask_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Task)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ServiceServer).CreateTask(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/repository.Service/CreateTask",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ServiceServer).CreateTask(ctx, req.(*Task))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Service_Complete_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Task)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ServiceServer).Complete(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/repository.Service/Complete",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ServiceServer).Complete(ctx, req.(*Task))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Service_PushData_Handler(srv interface{}, stream grpc.ServerStream) error {
 	return srv.(ServiceServer).PushData(&servicePushDataServer{stream})
 }
 
 type Service_PushDataServer interface {
-	SendAndClose(*emptypb.Empty) error
+	SendAndClose(*Count) error
 	Recv() (*Metadata, error)
 	grpc.ServerStream
 }
@@ -217,7 +281,7 @@ type servicePushDataServer struct {
 	grpc.ServerStream
 }
 
-func (x *servicePushDataServer) SendAndClose(m *emptypb.Empty) error {
+func (x *servicePushDataServer) SendAndClose(m *Count) error {
 	return x.ServerStream.SendMsg(m)
 }
 
@@ -281,6 +345,14 @@ var Service_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Version",
 			Handler:    _Service_Version_Handler,
+		},
+		{
+			MethodName: "CreateTask",
+			Handler:    _Service_CreateTask_Handler,
+		},
+		{
+			MethodName: "Complete",
+			Handler:    _Service_Complete_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

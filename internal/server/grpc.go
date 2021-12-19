@@ -3,12 +3,14 @@ package server
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"fmt"
 	"io"
 	"net"
 	"time"
 
 	"github.com/eviltomorrow/robber-core/pkg/grpclb"
+	"github.com/eviltomorrow/robber-core/pkg/httpclient"
 	"github.com/eviltomorrow/robber-core/pkg/mysql"
 	"github.com/eviltomorrow/robber-core/pkg/system"
 	"github.com/eviltomorrow/robber-core/pkg/zlog"
@@ -30,6 +32,7 @@ var (
 	Endpoints      = []string{}
 	RevokeEtcdConn func() error
 	Key            = "grpclb/service/repository"
+	timeout        = 10 * time.Second
 
 	server *grpc.Server
 )
@@ -58,13 +61,92 @@ func (g *GRPC) Version(ctx context.Context, _ *emptypb.Empty) (*wrapperspb.Strin
 	return &wrapperspb.StringValue{Value: buf.String()}, nil
 }
 
+// CreateTask(context.Context, *Task) (*emptypb.Empty, error)
+// Complete(context.Context, *Task) (*emptypb.Empty, error)
+// PushData(Service_PushDataServer) error
+// GetStockFull(*emptypb.Empty, Service_GetStockFullServer) error
+// GetQuoteLatest(*QuoteRequest, Service_GetQuoteLatestServer) error
+
+func (g *GRPC) CreateTask(ctx context.Context, req *pb.Task) (*emptypb.Empty, error) {
+	if req == nil {
+		return nil, fmt.Errorf("invalid parameter, task is nil")
+	}
+
+	tx, err := mysql.DB.Begin()
+	if err != nil {
+		return nil, nil
+	}
+	_, err = model.TaskWithSelectOne(tx, req.Date, timeout)
+	if err == nil {
+		tx.Rollback()
+		return nil, fmt.Errorf("exist same date[%v] task", req.Date)
+	}
+	if err != sql.ErrNoRows {
+		tx.Rollback()
+		return nil, err
+	}
+
+	if _, err := model.TaskWithInsertOne(tx, &model.Task{Date: req.Date, CallbackURL: req.CallbackUrl}, timeout); err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return &emptypb.Empty{}, nil
+}
+
+func (g *GRPC) Complete(ctx context.Context, req *pb.Task) (*emptypb.Empty, error) {
+	if req == nil {
+		return nil, fmt.Errorf("invalid parameter, tak is nil")
+	}
+
+	task, err := model.TaskWithSelectOne(mysql.DB, req.Date, timeout)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("not found task with date[%s]", req.Date)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if task == nil {
+		return nil, fmt.Errorf("panic: invalid task is nil")
+	}
+
+	resp, err := httpclient.GetHTTP(task.CallbackURL, timeout, nil)
+	if err != nil {
+		return nil, err
+	}
+	zlog.Info("Callback success", zap.String("url", task.CallbackURL), zap.String("result", resp))
+
+	tx, err := mysql.DB.Begin()
+	if err != nil {
+		return nil, err
+	}
+	_, err = model.TaskWithUpdateOne(tx, req.Date, &model.Task{
+		Completed:     1,
+		MetadataCount: req.MetadataCount,
+		StockCount:    req.StockCount,
+		DayCount:      req.DayCount,
+		WeekCount:     req.WeekCount,
+	}, timeout)
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return &emptypb.Empty{}, nil
+}
+
 func (g *GRPC) PushData(req pb.Service_PushDataServer) error {
 	var (
-		timeout = 20 * time.Second
-		size    = 50
-		stocks  = make([]*model.Stock, 0, size)
-		days    = make([]*model.Quote, 0, size)
-		weeks   = make([]*model.Quote, 0, size)
+		timeout                         = 20 * time.Second
+		size                            = 50
+		stocks                          = make([]*model.Stock, 0, size)
+		days                            = make([]*model.Quote, 0, size)
+		weeks                           = make([]*model.Quote, 0, size)
+		stockCount, dayCount, weekCount int64
 	)
 	for {
 		data, err := req.Recv()
@@ -83,10 +165,12 @@ func (g *GRPC) PushData(req pb.Service_PushDataServer) error {
 		})
 
 		if len(stocks) >= size {
-			if _, err := service.SaveStocks(stocks, timeout); err != nil {
+			affected, err := service.SaveStocks(stocks, timeout)
+			if err != nil {
 				zlog.Error("SaveStocks failure", zap.Any("stocks", stocks), zap.Error(err))
 			}
 			stocks = stocks[:0]
+			stockCount += affected
 		}
 
 		t, err := time.ParseInLocation("2006-01-02", data.Date, time.Local)
@@ -102,44 +186,54 @@ func (g *GRPC) PushData(req pb.Service_PushDataServer) error {
 			days = append(days, day)
 		}
 		if len(days) >= size {
-			if _, err := service.SaveQuotes(days, model.Day, timeout); err != nil {
+			affected, err := service.SaveQuotes(days, model.Day, timeout)
+			if err != nil {
 				zlog.Error("SaveQuotes day failure", zap.Any("days", days), zap.Error(err))
 			}
 			days = days[:0]
+			dayCount += affected
 		}
 
 		if t.Weekday() == time.Friday {
 			week, err := service.BuildQuoteWeek(data.Code, t)
 			if err != nil {
-				zlog.Error("BuildQuoteWeek failure", zap.String("code", data.Code), zap.Error(err))
+				zlog.Error("BuildQuoteWeek failure", zap.Time("date", t), zap.String("code", data.Code), zap.Error(err))
 			} else {
 				weeks = append(weeks, week)
 			}
 		}
 		if len(weeks) >= size {
-			if _, err := service.SaveQuotes(weeks, model.Week, timeout); err != nil {
+			affected, err := service.SaveQuotes(weeks, model.Week, timeout)
+			if err != nil {
 				zlog.Error("SaveQuotes week failure", zap.Any("weeks", weeks), zap.Error(err))
 			}
 			weeks = weeks[:0]
+			weekCount += affected
 		}
 	}
 
 	if len(stocks) != 0 {
-		if _, err := service.SaveStocks(stocks, timeout); err != nil {
+		affected, err := service.SaveStocks(stocks, timeout)
+		if err != nil {
 			zlog.Error("SaveStocks failure", zap.Any("stocks", stocks), zap.Error(err))
 		}
+		stockCount += affected
 	}
 	if len(days) != 0 {
-		if _, err := service.SaveQuotes(days, model.Day, timeout); err != nil {
+		affected, err := service.SaveQuotes(days, model.Day, timeout)
+		if err != nil {
 			zlog.Error("SaveQuotes day failure", zap.Any("days", days), zap.Error(err))
 		}
+		dayCount += affected
 	}
 	if len(weeks) != 0 {
-		if _, err := service.SaveQuotes(weeks, model.Week, timeout); err != nil {
+		affected, err := service.SaveQuotes(weeks, model.Week, timeout)
+		if err != nil {
 			zlog.Error("SaveQuotes week failure", zap.Any("weeks", weeks), zap.Error(err))
 		}
+		weekCount += affected
 	}
-	return req.SendAndClose(&emptypb.Empty{})
+	return req.SendAndClose(&pb.Count{Stock: stockCount, Day: dayCount, Week: weekCount})
 }
 
 func (g *GRPC) GetStockFull(_ *emptypb.Empty, resp pb.Service_GetStockFullServer) error {

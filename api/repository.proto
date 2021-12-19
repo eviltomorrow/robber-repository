@@ -9,7 +9,9 @@ package repository;
 service Service {
     rpc Version(google.protobuf.Empty) returns (google.protobuf.StringValue){}
 
-    rpc PushData(stream Metadata) returns (google.protobuf.Empty){}
+    rpc CreateTask(Task) returns (google.protobuf.Empty){}
+    rpc Complete(Task) returns (google.protobuf.Empty){}
+    rpc PushData(stream Metadata) returns (Count){}
     rpc GetStockFull(google.protobuf.Empty) returns (stream Stock){}
     rpc GetQuoteLatest(QuoteRequest) returns (stream Quote){}
 }
@@ -40,6 +42,12 @@ message Metadata {
     string suspend = 12;
 }
 
+message Count {
+    int64 stock = 1;
+    int64 day = 2;
+    int64 week = 3;
+}
+
 message Stock {
     string code = 1;
     string name = 2;
@@ -57,4 +65,13 @@ message Quote {
     double account = 8;
     string date = 9;
     int32 num_of_year = 10;
+}
+
+message Task {
+    string date = 1;
+    int64 metadata_count = 2;
+    int64 stock_count = 3;
+    int64 day_count = 4;
+    int64 week_count = 5;
+    string callback_url = 6;
 }

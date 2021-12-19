@@ -71,9 +71,9 @@ func init() {
 		log.Fatal(err)
 	}
 	onece.Do(func() {
-		truncateStock()
-		truncateQuoteDay()
-		truncateQuoteWeek()
+		// truncateStock()
+		// truncateQuoteDay()
+		// truncateQuoteWeek()
 	})
 }
 
