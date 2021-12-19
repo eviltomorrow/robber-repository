@@ -141,12 +141,14 @@ func (g *GRPC) Complete(ctx context.Context, req *pb.Task) (*emptypb.Empty, erro
 
 func (g *GRPC) PushData(req pb.Service_PushDataServer) error {
 	var (
-		timeout                         = 20 * time.Second
-		size                            = 50
-		stocks                          = make([]*model.Stock, 0, size)
-		days                            = make([]*model.Quote, 0, size)
-		weeks                           = make([]*model.Quote, 0, size)
+		timeout = 20 * time.Second
+		size    = 50
+		stocks  = make([]*model.Stock, 0, size)
+		days    = make([]*model.Quote, 0, size)
+		weeks   = make([]*model.Quote, 0, size)
+
 		stockCount, dayCount, weekCount int64
+		cache                           = make([]*pb.Metadata, 0, size)
 	)
 	for {
 		data, err := req.Recv()
@@ -164,75 +166,110 @@ func (g *GRPC) PushData(req pb.Service_PushDataServer) error {
 			CreateTimestamp: time.Now(),
 		})
 
-		if len(stocks) >= size {
+		cache = append(cache, data)
+
+		if len(cache) >= size {
+			for _, c := range cache {
+				t, err := time.ParseInLocation("2006-01-02", c.Date, time.Local)
+				if err != nil {
+					zlog.Error("ParseInLocation date failure", zap.String("data", c.String()), zap.Error(err))
+					continue
+				}
+				day, err := service.BuildQuoteDay(c, t)
+				if err != nil {
+					zlog.Error("BuildQuoteDay failure", zap.String("data", c.String()), zap.Error(err))
+				} else {
+					days = append(days, day)
+				}
+			}
+
 			affected, err := service.SaveStocks(stocks, timeout)
 			if err != nil {
 				zlog.Error("SaveStocks failure", zap.Any("stocks", stocks), zap.Error(err))
 			}
 			stocks = stocks[:0]
 			stockCount += affected
-		}
 
-		t, err := time.ParseInLocation("2006-01-02", data.Date, time.Local)
-		if err != nil {
-			zlog.Error("ParseInLocation date failure", zap.String("data", data.String()), zap.Error(err))
-			continue
-		}
-
-		day, err := service.BuildQuoteDay(data, t)
-		if err != nil {
-			zlog.Error("BuildQuoteDay failure", zap.String("data", data.String()), zap.Error(err))
-		} else {
-			days = append(days, day)
-		}
-		if len(days) >= size {
-			affected, err := service.SaveQuotes(days, model.Day, timeout)
+			affected, err = service.SaveQuotes(days, model.Day, timeout)
 			if err != nil {
 				zlog.Error("SaveQuotes day failure", zap.Any("days", days), zap.Error(err))
 			}
 			days = days[:0]
 			dayCount += affected
-		}
 
-		if t.Weekday() == time.Friday {
-			week, err := service.BuildQuoteWeek(data.Code, t)
-			if err != nil {
-				zlog.Error("BuildQuoteWeek failure", zap.Time("date", t), zap.String("code", data.Code), zap.Error(err))
-			} else {
-				weeks = append(weeks, week)
+			for _, c := range cache {
+				t, err := time.ParseInLocation("2006-01-02", c.Date, time.Local)
+				if err != nil {
+					zlog.Error("ParseInLocation date failure", zap.String("data", c.String()), zap.Error(err))
+					continue
+				}
+				week, err := service.BuildQuoteWeek(c.Code, t)
+				if err != nil {
+					zlog.Error("BuildQuoteWeek failure", zap.String("data", c.String()), zap.Error(err))
+				} else {
+					weeks = append(weeks, week)
+				}
 			}
-		}
-		if len(weeks) >= size {
-			affected, err := service.SaveQuotes(weeks, model.Week, timeout)
+
+			affected, err = service.SaveQuotes(weeks, model.Week, timeout)
 			if err != nil {
 				zlog.Error("SaveQuotes week failure", zap.Any("weeks", weeks), zap.Error(err))
 			}
 			weeks = weeks[:0]
 			weekCount += affected
+
+			cache = cache[:0]
 		}
 	}
 
-	if len(stocks) != 0 {
+	if len(cache) != 0 {
+		for _, c := range cache {
+			t, err := time.ParseInLocation("2006-01-02", c.Date, time.Local)
+			if err != nil {
+				zlog.Error("ParseInLocation date failure", zap.String("data", c.String()), zap.Error(err))
+				continue
+			}
+			day, err := service.BuildQuoteDay(c, t)
+			if err != nil {
+				zlog.Error("BuildQuoteDay failure", zap.String("data", c.String()), zap.Error(err))
+			} else {
+				days = append(days, day)
+			}
+		}
+
 		affected, err := service.SaveStocks(stocks, timeout)
 		if err != nil {
 			zlog.Error("SaveStocks failure", zap.Any("stocks", stocks), zap.Error(err))
 		}
 		stockCount += affected
-	}
-	if len(days) != 0 {
-		affected, err := service.SaveQuotes(days, model.Day, timeout)
+
+		affected, err = service.SaveQuotes(days, model.Day, timeout)
 		if err != nil {
 			zlog.Error("SaveQuotes day failure", zap.Any("days", days), zap.Error(err))
 		}
 		dayCount += affected
-	}
-	if len(weeks) != 0 {
-		affected, err := service.SaveQuotes(weeks, model.Week, timeout)
+
+		for _, c := range cache {
+			t, err := time.ParseInLocation("2006-01-02", c.Date, time.Local)
+			if err != nil {
+				zlog.Error("ParseInLocation date failure", zap.String("data", c.String()), zap.Error(err))
+				continue
+			}
+			week, err := service.BuildQuoteWeek(c.Code, t)
+			if err != nil {
+				zlog.Error("BuildQuoteWeek failure", zap.String("data", c.String()), zap.Error(err))
+			} else {
+				weeks = append(weeks, week)
+			}
+		}
+
+		affected, err = service.SaveQuotes(weeks, model.Week, timeout)
 		if err != nil {
 			zlog.Error("SaveQuotes week failure", zap.Any("weeks", weeks), zap.Error(err))
 		}
 		weekCount += affected
 	}
+
 	return req.SendAndClose(&pb.Count{Stock: stockCount, Day: dayCount, Week: weekCount})
 }
 
