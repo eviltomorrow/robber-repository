@@ -203,11 +203,14 @@ func (g *GRPC) PushData(req pb.Service_PushDataServer) error {
 					zlog.Error("ParseInLocation date failure", zap.String("data", c.String()), zap.Error(err))
 					continue
 				}
-				week, err := service.BuildQuoteWeek(c.Code, t)
-				if err != nil {
-					zlog.Error("BuildQuoteWeek failure", zap.String("data", c.String()), zap.Error(err))
-				} else {
-					weeks = append(weeks, week)
+
+				if t.Weekday() == time.Friday {
+					week, err := service.BuildQuoteWeek(c.Code, t)
+					if err != nil {
+						zlog.Error("BuildQuoteWeek failure", zap.String("data", c.String()), zap.Error(err))
+					} else {
+						weeks = append(weeks, week)
+					}
 				}
 			}
 
@@ -255,18 +258,21 @@ func (g *GRPC) PushData(req pb.Service_PushDataServer) error {
 				zlog.Error("ParseInLocation date failure", zap.String("data", c.String()), zap.Error(err))
 				continue
 			}
-			week, err := service.BuildQuoteWeek(c.Code, t)
-			if err != nil {
-				zlog.Error("BuildQuoteWeek failure", zap.String("data", c.String()), zap.Error(err))
-			} else {
-				weeks = append(weeks, week)
+
+			if t.Weekday() == time.Friday {
+				week, err := service.BuildQuoteWeek(c.Code, t)
+				if err != nil {
+					zlog.Error("BuildQuoteWeek failure", zap.String("data", c.String()), zap.Error(err))
+				} else {
+					weeks = append(weeks, week)
+				}
 			}
 		}
-
 		affected, err = service.SaveQuotes(weeks, model.Week, timeout)
 		if err != nil {
 			zlog.Error("SaveQuotes week failure", zap.Any("weeks", weeks), zap.Error(err))
 		}
+
 		weekCount += affected
 	}
 
