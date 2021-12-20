@@ -72,6 +72,6 @@ var GlobalConfig = &Config{
 	},
 	Server: Server{
 		Host: "0.0.0.0",
-		Port: 19091,
+		Port: 27321,
 	},
 }
