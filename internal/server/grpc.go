@@ -308,11 +308,14 @@ func (g *GRPC) GetStockFull(_ *emptypb.Empty, resp pb.Service_GetStockFullServer
 
 func (g *GRPC) GetQuoteLatest(req *pb.QuoteRequest, resp pb.Service_GetQuoteLatestServer) error {
 	var (
-		offset  int64 = 0
 		limit   int64 = req.Limit
 		mode    string
 		timeout = 10 * time.Second
 	)
+	if limit >= 250 {
+		return fmt.Errorf("limit must be less than 250")
+	}
+
 	switch req.Mode {
 	case pb.QuoteRequest_Day:
 		mode = model.Day
@@ -322,33 +325,26 @@ func (g *GRPC) GetQuoteLatest(req *pb.QuoteRequest, resp pb.Service_GetQuoteLate
 		mode = model.Day
 	}
 
-	for {
-		quotes, err := model.QuoteWithSelectRangeByDate(mysql.DB, mode, req.Date, offset, limit, timeout)
-		if err != nil {
+	quotes, err := model.QuoteWithSelectManyLatest(mysql.DB, mode, req.Code, req.Date, limit, timeout)
+	if err != nil {
+		return err
+	}
+
+	for _, quote := range quotes {
+		if err := resp.Send(&pb.Quote{
+			Code:            quote.Code,
+			Open:            quote.Open,
+			Close:           quote.Close,
+			High:            quote.High,
+			Low:             quote.Low,
+			YesterdayClosed: quote.YesterdayClosed,
+			Volume:          quote.Volume,
+			Account:         quote.Account,
+			Date:            quote.Date.Format("2006-01-02"),
+			NumOfYear:       int32(quote.NumOfYear),
+		}); err != nil {
 			return err
 		}
-
-		for _, quote := range quotes {
-			if err := resp.Send(&pb.Quote{
-				Code:            quote.Code,
-				Open:            quote.Open,
-				Close:           quote.Close,
-				High:            quote.High,
-				Low:             quote.Low,
-				YesterdayClosed: quote.YesterdayClosed,
-				Volume:          quote.Volume,
-				Account:         quote.Account,
-				Date:            quote.Date.Format("2006-01-02"),
-				NumOfYear:       int32(quote.NumOfYear),
-			}); err != nil {
-				return err
-			}
-		}
-
-		if int64(len(quotes)) < limit {
-			break
-		}
-		offset += limit
 	}
 	return nil
 }
