@@ -3,7 +3,6 @@ package client
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/eviltomorrow/robber-core/pkg/grpclb"
@@ -21,10 +20,9 @@ var (
 	EtcdEndpoints = []string{
 		"127.0.0.1:2379",
 	}
-	mut sync.Mutex
 )
 
-func NewClientForRepository() (pb.ServiceClient, func(), error) {
+func init() {
 	cli, err := clientv3.New(clientv3.Config{
 		Endpoints:   EtcdEndpoints,
 		DialTimeout: 5 * time.Second,
@@ -38,17 +36,16 @@ func NewClientForRepository() (pb.ServiceClient, func(), error) {
 		},
 	})
 	if err != nil {
-		return nil, nil, err
+		panic(fmt.Errorf("create etcd client failure, nest error: %v", err))
 	}
 
 	builder := &grpclb.Builder{
 		Client: cli,
 	}
-
-	mut.Lock()
-	defer mut.Unlock()
-
 	resolver.Register(builder)
+}
+
+func NewClientForRepository() (pb.ServiceClient, func(), error) {
 	target := fmt.Sprintf("etcd:///%s", server.Key)
 	conn, err := grpc.DialContext(
 		context.Background(),
@@ -62,6 +59,5 @@ func NewClientForRepository() (pb.ServiceClient, func(), error) {
 
 	return pb.NewServiceClient(conn), func() {
 		conn.Close()
-		cli.Close()
 	}, nil
 }
