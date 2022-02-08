@@ -26,3 +26,27 @@ func TestVersion(t *testing.T) {
 	}
 	fmt.Println(repley.Value)
 }
+
+func BenchmarkVersion(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		if err := getVersion(); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func getVersion() error {
+	stub, close, err := client.NewClientForRepository()
+	if err != nil {
+		return err
+	}
+	defer close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	_, err = stub.Version(ctx, &emptypb.Empty{})
+	if err != nil {
+		return err
+	}
+	return nil
+}

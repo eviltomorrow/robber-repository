@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/BurntSushi/toml v1.0.0
-	github.com/eviltomorrow/robber-core v0.0.0-20220123030150-2859e25456e7
+	github.com/eviltomorrow/robber-core v0.0.0-20220208095215-3df6a3e53224
 	github.com/json-iterator/go v1.1.12
 	github.com/spf13/cobra v1.3.0
 	github.com/stretchr/testify v1.7.0
